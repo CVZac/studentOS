@@ -5,6 +5,7 @@ import { Card, Delta, LevelBadge, PriorityBadge, StatTile, fmt, pct } from '../c
 import { SYSTEM_INDICATORS } from '../core/framework';
 import type { StudentModel } from '../state/model';
 import { useStudentOS } from '../state/store';
+import { RouteLink } from '../state/ui';
 import { PersonalLegend, personalRows } from './scoreRows';
 
 export function RadarLegend() {
@@ -136,9 +137,9 @@ export function OverviewView({ model }: { model: StudentModel }) {
         title="各科成绩区间"
         sub={`历次考试得分率（共 ${model.exams.length} 次），数值为本人平均分`}
         actions={
-          <a className="btn sm ghost" href="#/scores">
+          <RouteLink className="btn sm ghost" to="scores">
             详情 <Icon name="arrowRight" size={14} />
-          </a>
+          </RouteLink>
         }
       >
         <div style={{ marginBottom: 14 }}>
@@ -152,9 +153,9 @@ export function OverviewView({ model }: { model: StudentModel }) {
         title="本周聚焦"
         sub={`共 ${todos.length} 项待办，已完成 ${doneCount} 项`}
         actions={
-          <a className="btn sm ghost" href="#/todos">
+          <RouteLink className="btn sm ghost" to="todos">
             全部 <Icon name="arrowRight" size={14} />
-          </a>
+          </RouteLink>
         }
       >
         {open.length === 0 ? (

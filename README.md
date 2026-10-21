@@ -53,6 +53,8 @@ npm run build     # 类型检查 + 生产构建，产物在 dist/
 
 构建产物是纯静态文件（使用 hash 路由与相对路径），可以直接部署到 GitHub Pages、Nginx 或任意静态托管。
 
+`npm run build:artifact` 会生成可发布为 claude.ai Artifact 的单文件页面 `dist-artifact/student-os.html`：React 18.3.1 以 UMD 形式从 cdnjs 加载，应用代码与样式内联；在 Artifact 中导出数据通过 `downloads` 能力完成，查看者确认后保存。
+
 ## 使用自己的数据
 
 首次打开使用内置演示数据（高二(3)班，40 名学生、6 次考试、6 门学科，固定随机种子生成）。在「数据管理」页可以下载模板、导入本班数据：

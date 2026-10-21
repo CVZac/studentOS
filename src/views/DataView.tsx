@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 import { Icon } from '../components/Icon';
-import { Card, StatTile } from '../components/ui';
+import { Card, ConfirmButton, StatTile } from '../components/ui';
 import { validateDataset } from '../core/dataset';
 import { createDemoDataset } from '../data/demo';
+import { useFileSaver } from '../state/fileSaver';
 import { useStudentOS } from '../state/store';
 
 type Status = { kind: 'idle' } | { kind: 'ok'; message: string } | { kind: 'error'; errors: string[] };
@@ -25,21 +26,18 @@ const SCHEMA_EXAMPLE = `{
   "scores": [{ "studentId": "2025030101", "examId": "g2-oct", "subjectId": "math", "score": 97 }]
 }`;
 
-function download(filename: string, data: unknown) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 export function DataView() {
   const { dataset, isDemo, importDataset, resetDemo, todos } = useStudentOS();
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [over, setOver] = useState(false);
+  const [saveNote, setSaveNote] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const saver = useFileSaver();
+
+  const exportJSON = async (filename: string, data: unknown) => {
+    const outcome = await saver.save(filename, JSON.stringify(data, null, 2));
+    setSaveNote(outcome === 'saved' ? `已导出 ${filename}` : outcome === 'declined' ? '已取消保存' : '当前环境无法保存文件');
+  };
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
@@ -119,38 +117,45 @@ export function DataView() {
 
       <Card className="span-5" title="导出与重置">
         <div className="stack" style={{ gap: 10 }}>
-          <button type="button" className="btn" onClick={() => download(`studentos-${dataset.className}.json`, dataset)}>
-            <Icon name="download" size={16} />
-            导出当前数据
-          </button>
-          <button type="button" className="btn" onClick={() => download('studentos-template.json', createDemoDataset())}>
-            <Icon name="download" size={16} />
-            下载数据模板（演示数据）
-          </button>
-          <button
-            type="button"
-            className="btn"
+          {saver.available && (
+            <>
+              <button type="button" className="btn" onClick={() => void exportJSON(`studentos-${dataset.className}.json`, dataset)}>
+                <Icon name="download" size={16} />
+                导出当前数据
+              </button>
+              <button type="button" className="btn" onClick={() => void exportJSON('studentos-template.json', createDemoDataset())}>
+                <Icon name="download" size={16} />
+                下载数据模板（演示数据）
+              </button>
+            </>
+          )}
+          <ConfirmButton
+            label="恢复演示数据"
+            prompt="将替换当前导入的数据"
+            confirmLabel="恢复"
+            icon={<Icon name="reset" size={16} />}
             disabled={isDemo}
-            onClick={() => {
-              if (window.confirm('恢复演示数据会替换当前导入的数据，确定继续吗？')) {
-                resetDemo();
-                setStatus({ kind: 'ok', message: '已恢复演示数据' });
-              }
+            onConfirm={() => {
+              resetDemo();
+              setStatus({ kind: 'ok', message: '已恢复演示数据' });
             }}
-          >
-            <Icon name="reset" size={16} />
-            恢复演示数据
-          </button>
-          <button
-            type="button"
-            className="btn danger"
-            onClick={() => {
-              if (window.confirm('确定清空所有学生的待办完成记录与自定义待办吗？')) todos.clear();
+          />
+          <ConfirmButton
+            label="清空待办记录"
+            prompt="清空所有学生的完成记录与自定义待办"
+            confirmLabel="清空"
+            icon={<Icon name="trash" size={16} />}
+            danger
+            onConfirm={() => {
+              todos.clear();
+              setSaveNote('已清空待办记录');
             }}
-          >
-            <Icon name="trash" size={16} />
-            清空待办记录
-          </button>
+          />
+          {saveNote && (
+            <p className="card-sub" role="status">
+              {saveNote}
+            </p>
+          )}
         </div>
       </Card>
 

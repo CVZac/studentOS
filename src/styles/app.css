@@ -278,7 +278,9 @@ a {
 
 .main {
   min-width: 0;
-  padding: 28px 40px 64px;
+  padding-block: 28px 64px;
+  padding-left: max(40px, env(safe-area-inset-left, 0px));
+  padding-right: max(40px, env(safe-area-inset-right, 0px));
 }
 .main-inner {
   max-width: 1240px;
@@ -674,6 +676,30 @@ a {
 }
 .btn.primary:disabled:hover {
   background: var(--ink-1);
+}
+.btn.danger-solid {
+  background: var(--critical);
+  border-color: transparent;
+  color: #fff;
+}
+.btn.danger-solid:hover {
+  background: color-mix(in srgb, var(--critical) 88%, var(--ink-1));
+}
+.confirm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 4px 4px 4px 14px;
+  border-radius: 19px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+}
+.confirm-text {
+  flex: 1 1 140px;
+  font-size: 13px;
+  color: var(--ink-2);
 }
 .btn.sm {
   height: 30px;
@@ -1562,12 +1588,16 @@ table.data td.wrap {
     display: none;
   }
   .main {
-    padding: 20px 16px 104px;
+    padding-block: 20px calc(104px + env(safe-area-inset-bottom, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
   .tabbar {
     position: fixed;
     z-index: 30;
-    inset: auto 12px 12px;
+    left: max(12px, env(safe-area-inset-left, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
     padding: 6px;

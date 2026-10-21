@@ -3,7 +3,7 @@ import { Icon } from './components/Icon';
 import type { IconName } from './components/Icon';
 import { useStudentModel } from './state/model';
 import { useStudentOS } from './state/store';
-import { useHashRoute, useTheme } from './state/ui';
+import { RouteLink, RouterProvider, useRouter, useTheme } from './state/ui';
 import type { Route } from './state/ui';
 import { DataView } from './views/DataView';
 import { FrameworkView } from './views/FrameworkView';
@@ -32,7 +32,7 @@ const NAV: { group: string; items: { id: Route; label: string; short: string; ic
 ];
 
 export function App() {
-  const route = useHashRoute();
+  const { route, navigate } = useRouter();
   const { theme, toggle } = useTheme();
   const { dataset, setStudentId, todos: todoState, isDemo } = useStudentOS();
   const model = useStudentModel();
@@ -76,100 +76,102 @@ export function App() {
   const showSwitcher = route !== 'framework' && route !== 'data';
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">S</div>
-          <div>
-            <div className="brand-name">Student OS</div>
-            <div className="brand-sub">学生成长操作系统</div>
-          </div>
-        </div>
-        {NAV.map((g) => (
-          <nav className="nav" key={g.group} aria-label={g.group}>
-            <div className="nav-label">{g.group}</div>
-            {g.items.map((item) => (
-              <a key={item.id} href={`#/${item.id}`} className="nav-item" aria-current={route === item.id ? 'page' : undefined}>
-                <Icon name={item.icon} />
-                {item.label}
-                {item.id === 'todos' && remaining > 0 && <span className="nav-count num">{remaining}</span>}
-              </a>
-            ))}
-          </nav>
-        ))}
-        <div className="sidebar-foot">
-          <div className="class-card">
-            <div className="label">{dataset.school}</div>
-            <div className="value">{dataset.className}</div>
-            <div className="label">
-              {dataset.students.length} 名学生 · {dataset.exams.length} 次考试 · {dataset.subjects.length} 门学科
-            </div>
-          </div>
-          <button type="button" className="btn ghost" onClick={toggle} style={{ justifyContent: 'flex-start' }}>
-            <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
-            {theme === 'dark' ? '浅色模式' : '深色模式'}
-          </button>
-        </div>
-      </aside>
-
-      <main className="main">
-        <div className="main-inner">
-          <header className="topbar">
+    <RouterProvider value={navigate}>
+      <div className="shell">
+        <aside className="sidebar">
+          <div className="brand">
+            <div className="brand-mark">S</div>
             <div>
-              <div className="page-eyebrow">{page.eyebrow}</div>
-              <h1 className="page-title">{page.title}</h1>
-              <p className="page-sub">{page.sub}</p>
+              <div className="brand-name">Student OS</div>
+              <div className="brand-sub">学生成长操作系统</div>
             </div>
-            <div className="topbar-actions">
-              {showSwitcher && (
-                <label className="switcher">
-                  <span className="avatar" aria-hidden="true">
-                    {student.name.slice(-1)}
-                  </span>
-                  <span className="visually-hidden">切换学生</span>
-                  <select value={student.id} onChange={(e) => setStudentId(e.target.value)}>
-                    {dataset.students.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="chev">
-                    <Icon name="chevron" size={14} strokeWidth={2.2} />
-                  </span>
-                </label>
-              )}
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={toggle}
-                aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
-              >
-                <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
-              </button>
-            </div>
-          </header>
-
-          {/* 学生相关页面切换学生时重新入场；体系与数据页不随学生重挂载，以保留导入提示等状态 */}
-          <div className="page" key={showSwitcher ? `${route}/${student.id}` : route}>
-            {route === 'overview' && <OverviewView model={model} />}
-            {route === 'quality' && <QualityView model={model} />}
-            {route === 'scores' && <ScoresView model={model} />}
-            {route === 'todos' && <TodosView model={model} />}
-            {route === 'framework' && <FrameworkView />}
-            {route === 'data' && <DataView />}
           </div>
-        </div>
-      </main>
+          {NAV.map((g) => (
+            <nav className="nav" key={g.group} aria-label={g.group}>
+              <div className="nav-label">{g.group}</div>
+              {g.items.map((item) => (
+                <RouteLink key={item.id} to={item.id} className="nav-item" current={route === item.id}>
+                  <Icon name={item.icon} />
+                  {item.label}
+                  {item.id === 'todos' && remaining > 0 && <span className="nav-count num">{remaining}</span>}
+                </RouteLink>
+              ))}
+            </nav>
+          ))}
+          <div className="sidebar-foot">
+            <div className="class-card">
+              <div className="label">{dataset.school}</div>
+              <div className="value">{dataset.className}</div>
+              <div className="label">
+                {dataset.students.length} 名学生 · {dataset.exams.length} 次考试 · {dataset.subjects.length} 门学科
+              </div>
+            </div>
+            <button type="button" className="btn ghost" onClick={toggle} style={{ justifyContent: 'flex-start' }}>
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+              {theme === 'dark' ? '浅色模式' : '深色模式'}
+            </button>
+          </div>
+        </aside>
 
-      <nav className="tabbar" aria-label="主导航">
-        {NAV.flatMap((g) => g.items).map((item) => (
-          <a key={item.id} href={`#/${item.id}`} aria-current={route === item.id ? 'page' : undefined}>
-            <Icon name={item.icon} size={20} />
-            {item.short}
-          </a>
-        ))}
-      </nav>
-    </div>
+        <main className="main">
+          <div className="main-inner">
+            <header className="topbar">
+              <div>
+                <div className="page-eyebrow">{page.eyebrow}</div>
+                <h1 className="page-title">{page.title}</h1>
+                <p className="page-sub">{page.sub}</p>
+              </div>
+              <div className="topbar-actions">
+                {showSwitcher && (
+                  <label className="switcher">
+                    <span className="avatar" aria-hidden="true">
+                      {student.name.slice(-1)}
+                    </span>
+                    <span className="visually-hidden">切换学生</span>
+                    <select value={student.id} onChange={(e) => setStudentId(e.target.value)}>
+                      {dataset.students.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="chev">
+                      <Icon name="chevron" size={14} strokeWidth={2.2} />
+                    </span>
+                  </label>
+                )}
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={toggle}
+                  aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+                >
+                  <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
+                </button>
+              </div>
+            </header>
+
+            {/* 学生相关页面切换学生时重新入场；体系与数据页不随学生重挂载，以保留导入提示等状态 */}
+            <div className="page" key={showSwitcher ? `${route}/${student.id}` : route}>
+              {route === 'overview' && <OverviewView model={model} />}
+              {route === 'quality' && <QualityView model={model} />}
+              {route === 'scores' && <ScoresView model={model} />}
+              {route === 'todos' && <TodosView model={model} />}
+              {route === 'framework' && <FrameworkView />}
+              {route === 'data' && <DataView />}
+            </div>
+          </div>
+        </main>
+
+        <nav className="tabbar" aria-label="主导航">
+          {NAV.flatMap((g) => g.items).map((item) => (
+            <RouteLink key={item.id} to={item.id} current={route === item.id}>
+              <Icon name={item.icon} size={20} />
+              {item.short}
+            </RouteLink>
+          ))}
+        </nav>
+      </div>
+    </RouterProvider>
   );
 }

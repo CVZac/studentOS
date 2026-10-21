@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type { Level, LevelDef } from '../core/framework';
 import { PRIORITY_META } from '../core/recommendations';
@@ -172,6 +173,54 @@ export function TooltipBox({
           <span className="v">{r.value}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** 两步确认按钮：页内确认，不依赖浏览器 confirm 对话框（嵌入环境中不可用） */
+export function ConfirmButton({
+  label,
+  prompt,
+  confirmLabel,
+  icon,
+  danger,
+  disabled,
+  onConfirm,
+}: {
+  label: string;
+  prompt: string;
+  confirmLabel: string;
+  icon?: ReactNode;
+  danger?: boolean;
+  disabled?: boolean;
+  onConfirm: () => void;
+}) {
+  const [asking, setAsking] = useState(false);
+  if (!asking) {
+    return (
+      <button type="button" className={`btn${danger ? ' danger' : ''}`} disabled={disabled} onClick={() => setAsking(true)}>
+        {icon}
+        {label}
+      </button>
+    );
+  }
+  return (
+    <div className="confirm-row" role="group" aria-label={prompt}>
+      <span className="confirm-text">{prompt}</span>
+      <button type="button" className="btn sm ghost" onClick={() => setAsking(false)}>
+        取消
+      </button>
+      <button
+        type="button"
+        className={`btn sm ${danger ? 'danger-solid' : 'primary'}`}
+        autoFocus
+        onClick={() => {
+          setAsking(false);
+          onConfirm();
+        }}
+      >
+        {confirmLabel}
+      </button>
     </div>
   );
 }
