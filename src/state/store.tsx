@@ -8,7 +8,7 @@ import type { EvaluationFramework } from '../core/framework';
 import type { Priority } from '../core/recommendations';
 import type { Dataset } from '../core/types';
 import { createDemoDataset } from '../data/demo';
-import { KEYS, readJSON, writeJSON } from './storage';
+import { readJSON, workspaceKeys, writeJSON } from './storage';
 
 export interface CustomTodo {
   id: string;
@@ -44,8 +44,8 @@ interface StudentOSValue {
 
 const StudentOSContext = createContext<StudentOSValue | null>(null);
 
-function loadDataset(): { dataset: Dataset; isDemo: boolean } {
-  const stored = readJSON<unknown>(KEYS.dataset, null);
+function loadDataset(key: string): { dataset: Dataset; isDemo: boolean } {
+  const stored = readJSON<unknown>(key, null);
   if (stored) {
     const result = validateDataset(stored);
     if (result.ok) return { dataset: result.dataset, isDemo: false };
@@ -53,31 +53,33 @@ function loadDataset(): { dataset: Dataset; isDemo: boolean } {
   return { dataset: createDemoDataset(), isDemo: true };
 }
 
-export function StudentOSProvider({ children }: { children: ReactNode }) {
-  const [{ dataset, isDemo }, setData] = useState(loadDataset);
-  const [studentId, setStudentIdState] = useState<string>(() => readJSON(KEYS.student, ''));
-  const [todoStore, setTodoStore] = useState<TodoStore>(() => readJSON(KEYS.todos, { done: {}, custom: {} }));
+/** 数据作用域为当前登录账号的工作区；切换账号时由调用方以 key 重新挂载 */
+export function StudentOSProvider({ accountId, children }: { accountId: string; children: ReactNode }) {
+  const keys = useMemo(() => workspaceKeys(accountId), [accountId]);
+  const [{ dataset, isDemo }, setData] = useState(() => loadDataset(keys.dataset));
+  const [studentId, setStudentIdState] = useState<string>(() => readJSON(keys.student, ''));
+  const [todoStore, setTodoStore] = useState<TodoStore>(() => readJSON(keys.todos, { done: {}, custom: {} }));
   const framework = DEFAULT_FRAMEWORK;
 
   const classEval = useMemo(() => evaluateClass(dataset, framework), [dataset, framework]);
   const activeId = dataset.students.some((s) => s.id === studentId) ? studentId : dataset.students[0].id;
 
-  useEffect(() => writeJSON(KEYS.todos, todoStore), [todoStore]);
+  useEffect(() => writeJSON(keys.todos, todoStore), [keys, todoStore]);
 
   const setStudentId = useCallback((id: string) => {
     setStudentIdState(id);
-    writeJSON(KEYS.student, id);
-  }, []);
+    writeJSON(keys.student, id);
+  }, [keys]);
 
   const importDataset = useCallback((next: Dataset) => {
-    writeJSON(KEYS.dataset, next);
+    writeJSON(keys.dataset, next);
     setData({ dataset: next, isDemo: false });
-  }, []);
+  }, [keys]);
 
   const resetDemo = useCallback(() => {
-    writeJSON(KEYS.dataset, undefined);
+    writeJSON(keys.dataset, undefined);
     setData({ dataset: createDemoDataset(), isDemo: true });
-  }, []);
+  }, [keys]);
 
   const todos = useMemo<StudentOSValue['todos']>(() => {
     const done = new Set(todoStore.done[activeId] ?? []);

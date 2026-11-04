@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Icon } from './components/Icon';
 import type { IconName } from './components/Icon';
+import { useAuth } from './state/auth';
 import { useStudentModel } from './state/model';
 import { useStudentOS } from './state/store';
 import { RouteLink, RouterProvider, useRouter, useTheme } from './state/ui';
@@ -26,7 +27,7 @@ const NAV: { group: string; items: { id: Route; label: string; short: string; ic
     group: '体系',
     items: [
       { id: 'framework', label: '评价体系', short: '体系', icon: 'framework' },
-      { id: 'data', label: '数据管理', short: '数据', icon: 'data' },
+      { id: 'data', label: '账号与数据', short: '账号', icon: 'data' },
     ],
   },
 ];
@@ -34,6 +35,7 @@ const NAV: { group: string; items: { id: Route; label: string; short: string; ic
 export function App() {
   const { route, navigate } = useRouter();
   const { theme, toggle } = useTheme();
+  const { account, logout } = useAuth();
   const { dataset, setStudentId, todos: todoState, isDemo } = useStudentOS();
   const model = useStudentModel();
   const { student, latestExam, todos } = model;
@@ -67,9 +69,9 @@ export function App() {
       sub: '评价什么、谁来评、怎么算、如何改进',
     },
     data: {
-      eyebrow: '数据管理',
-      title: '数据导入与导出',
-      sub: isDemo ? '当前使用演示数据，可导入本班真实数据' : '当前使用已导入的数据',
+      eyebrow: '账号与数据',
+      title: '账号与数据管理',
+      sub: `当前账号 ${account?.username ?? ''} · ${isDemo ? '使用演示数据，可导入本班真实数据' : '使用已导入的数据'}`,
     },
   };
   const page = header[route];
@@ -110,6 +112,20 @@ export function App() {
               <Icon name={theme === 'dark' ? 'sun' : 'moon'} />
               {theme === 'dark' ? '浅色模式' : '深色模式'}
             </button>
+            {account && (
+              <div className="account-chip">
+                <span className="avatar" aria-hidden="true">
+                  {account.username.slice(0, 1).toUpperCase()}
+                </span>
+                <div className="account-chip-name">
+                  <span className="label">已登录</span>
+                  <strong title={account.username}>{account.username}</strong>
+                </div>
+                <button type="button" className="todo-toggle" aria-label="退出登录" title="退出登录" onClick={logout}>
+                  <Icon name="logout" size={17} />
+                </button>
+              </div>
+            )}
           </div>
         </aside>
 

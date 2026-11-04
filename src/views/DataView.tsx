@@ -6,6 +6,7 @@ import { validateDataset } from '../core/dataset';
 import { createDemoDataset } from '../data/demo';
 import { useFileSaver } from '../state/fileSaver';
 import { useStudentOS } from '../state/store';
+import { AccountCard } from './AccountCard';
 
 type Status = { kind: 'idle' } | { kind: 'ok'; message: string } | { kind: 'error'; errors: string[] };
 
@@ -67,12 +68,13 @@ export function DataView() {
 
   return (
     <div className="grid">
+      <AccountCard />
       <StatTile label="班级" value={dataset.className} foot={`${dataset.school} · ${isDemo ? '演示数据' : '已导入数据'}`} />
       <StatTile label="学生" value={dataset.students.length} unit="人" />
       <StatTile label="考试 / 学科" value={`${dataset.exams.length} / ${dataset.subjects.length}`} />
       <StatTile label="成绩记录" value={dataset.scores.length} unit="条" />
 
-      <Card className="span-7" title="导入数据" sub="JSON 格式，包含学科、考试、学生素质数据与成绩；导入后保存在本机浏览器中">
+      <Card className="span-7" title="导入数据" sub="JSON 格式，包含学科、考试、学生素质数据与成绩；导入后只保存到当前账号">
         <div
           className={`dropzone${over ? ' over' : ''}`}
           onDragOver={(e) => {
