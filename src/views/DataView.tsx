@@ -28,7 +28,7 @@ const SCHEMA_EXAMPLE = `{
 }`;
 
 export function DataView() {
-  const { dataset, isDemo, importDataset, resetDemo, todos } = useStudentOS();
+  const { dataset, isDemo, importDataset, resetDemo, todos, sync } = useStudentOS();
   const [status, setStatus] = useState<Status>({ kind: 'idle' });
   const [over, setOver] = useState(false);
   const [saveNote, setSaveNote] = useState('');
@@ -74,7 +74,7 @@ export function DataView() {
       <StatTile label="考试 / 学科" value={`${dataset.exams.length} / ${dataset.subjects.length}`} />
       <StatTile label="成绩记录" value={dataset.scores.length} unit="条" />
 
-      <Card className="span-7" title="导入数据" sub="JSON 格式，包含学科、考试、学生素质数据与成绩；导入后只保存到当前账号">
+      <Card className="span-7" title="导入数据" sub={`JSON 格式，包含学科、考试、学生素质数据与成绩；导入后保存到当前账号${sync.remote ? '（云端）' : '（本机）'}`}>
         <div
           className={`dropzone${over ? ' over' : ''}`}
           onDragOver={(e) => {

@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { ReactNode } from 'react';
 import { createAccount, findAccount, rehashAccount, toPublic, usernameKey, verifyPassword } from '../core/auth';
 import type { AccountRecord, AuthResult, PublicAccount } from '../core/auth';
+import { AUTH_MODE, api } from './api';
+import type { ApiResult } from './api';
 import {
   KEYS,
   LEGACY_WORKSPACE,
@@ -12,6 +14,7 @@ import {
   workspaceKeys,
   writeJSON,
 } from './storage';
+import { flushBeforeLogout } from './workspace';
 
 interface Session {
   accountId: string;
@@ -20,6 +23,10 @@ interface Session {
 }
 
 interface AuthValue {
+  /** local：账号保存在浏览器；server：账号保存在 Student OS 服务器 */
+  mode: 'local' | 'server';
+  /** 云端模式启动时确认登录状态期间为 true */
+  loading: boolean;
   account: PublicAccount | null;
   hasAccounts: boolean;
   /** false 表示浏览器禁止本地存储，账号只在本次打开期间有效 */
@@ -27,6 +34,10 @@ interface AuthValue {
   register(username: string, password: string, remember: boolean): Promise<AuthResult>;
   login(username: string, password: string, remember: boolean): Promise<AuthResult>;
   logout(): void;
+  /** 会话在服务端失效时调用，回到登录页并提示原因 */
+  expire(): void;
+  /** 回到登录页的原因，如登录已失效 */
+  notice: string | null;
   changePassword(current: string, next: string): Promise<AuthResult>;
   deleteAccount(password: string): Promise<AuthResult>;
 }
@@ -59,7 +70,7 @@ const loadAccounts = () => {
   return Array.isArray(list) ? list : [];
 };
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+function LocalAuthProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<AccountRecord[]>(loadAccounts);
   const [session, setSession] = useState<Session | null>(() => restoreSession(loadAccounts()));
   const [persistent] = useState(storageAvailable);
@@ -196,12 +207,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthValue>(
     () => ({
+      mode: 'local',
+      loading: false,
       account: current ? toPublic(current) : null,
       hasAccounts: accounts.length > 0,
       persistent,
       register,
       login,
       logout,
+      expire: logout,
+      notice: null,
       changePassword,
       deleteAccount,
     }),
@@ -210,6 +225,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+
+const toResult = (res: ApiResult<unknown>): AuthResult =>
+  res.ok ? { ok: true, value: undefined } : { ok: false, error: res.error, field: res.field };
+
+/** 云端账号：密码校验与会话由服务器负责，浏览器只持有 HttpOnly 会话 cookie */
+function ServerAuthProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<{ loading: boolean; account: PublicAccount | null; notice: string | null }>({
+    loading: true,
+    account: null,
+    notice: null,
+  });
+
+  useEffect(() => {
+    let alive = true;
+    void api<{ account: PublicAccount }>('GET', '/api/auth/me').then((res) => {
+      if (!alive) return;
+      setState({
+        loading: false,
+        account: res.ok ? res.data.account : null,
+        notice: res.ok ? null : res.error,
+      });
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const signIn = useCallback(async (path: string, username: string, password: string, remember: boolean) => {
+    const res = await api<{ account: PublicAccount }>('POST', path, { username, password, remember });
+    if (res.ok) setState({ loading: false, account: res.data.account, notice: null });
+    return toResult(res);
+  }, []);
+
+  const expire = useCallback(
+    () => setState({ loading: false, account: null, notice: '登录已失效（可能在其他设备修改了密码），请重新登录' }),
+    [],
+  );
+  const signOut = useCallback(() => setState({ loading: false, account: null, notice: null }), []);
+
+  const value = useMemo<AuthValue>(
+    () => ({
+      mode: 'server',
+      loading: state.loading,
+      account: state.account,
+      hasAccounts: true,
+      persistent: true,
+      register: (username, password, remember) => signIn('/api/auth/register', username, password, remember),
+      login: (username, password, remember) => signIn('/api/auth/login', username, password, remember),
+      logout: () => {
+        void (async () => {
+          await flushBeforeLogout();
+          await api('POST', '/api/auth/logout', {});
+          signOut();
+        })();
+      },
+      expire,
+      notice: state.notice,
+      changePassword: async (current, next) => {
+        const res = await api('POST', '/api/auth/password', { current, next });
+        if (!res.ok && res.status === 401) expire();
+        return toResult(res);
+      },
+      deleteAccount: async (password) => {
+        const res = await api('DELETE', '/api/auth/account', { password });
+        if (res.ok) signOut();
+        else if (res.status === 401) expire();
+        return toResult(res);
+      },
+    }),
+    [state, signIn, expire, signOut],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export const AuthProvider = AUTH_MODE === 'server' ? ServerAuthProvider : LocalAuthProvider;
 
 export function useAuth(): AuthValue {
   const ctx = useContext(AuthContext);

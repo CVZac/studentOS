@@ -2114,3 +2114,69 @@ table.data td.wrap {
     right: max(16px, env(safe-area-inset-right, 0px));
   }
 }
+
+/* ============================================================ splash & sync */
+.splash {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  text-align: center;
+  background: var(--page);
+}
+.splash .brand-mark {
+  animation: splash-pulse 1.6s var(--ease) infinite;
+}
+.splash-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.splash-sub {
+  max-width: 28em;
+  color: var(--ink-2);
+}
+@keyframes splash-pulse {
+  50% {
+    transform: scale(0.92);
+    opacity: 0.75;
+  }
+}
+.sync-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.sync-state::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--tone, var(--good));
+}
+.sync-state.saving {
+  --tone: var(--warning);
+}
+.sync-state.error {
+  --tone: var(--critical);
+  color: var(--critical-ink);
+}
+button.sync-state {
+  border: 0;
+  padding: 0;
+  background: none;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.topbar-sync {
+  display: none;
+}
+@media (max-width: 860px) {
+  .topbar-sync {
+    display: inline-flex;
+  }
+}

@@ -1,6 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import { validateDataset } from '../core/dataset';
 import { evaluateClass } from '../core/evaluation';
 import type { ClassEvaluation } from '../core/evaluation';
 import { DEFAULT_FRAMEWORK } from '../core/framework';
@@ -8,20 +7,9 @@ import type { EvaluationFramework } from '../core/framework';
 import type { Priority } from '../core/recommendations';
 import type { Dataset } from '../core/types';
 import { createDemoDataset } from '../data/demo';
-import { readJSON, workspaceKeys, writeJSON } from './storage';
+import type { CustomTodo, SyncStatus, TodoStore, WorkspacePersistence, WorkspaceSnapshot } from './workspace';
 
-export interface CustomTodo {
-  id: string;
-  title: string;
-  priority: Priority;
-  createdAt: string;
-}
-
-interface TodoStore {
-  /** studentId → 已完成的待办 id */
-  done: Record<string, string[]>;
-  custom: Record<string, CustomTodo[]>;
-}
+export type { CustomTodo } from './workspace';
 
 interface StudentOSValue {
   dataset: Dataset;
@@ -40,46 +28,60 @@ interface StudentOSValue {
     removeCustom(id: string): void;
     clear(): void;
   };
+  /** 云端模式下的保存状态；本地模式恒为 saved */
+  sync: { remote: boolean; status: SyncStatus; retry(): void };
 }
 
 const StudentOSContext = createContext<StudentOSValue | null>(null);
 
-function loadDataset(key: string): { dataset: Dataset; isDemo: boolean } {
-  const stored = readJSON<unknown>(key, null);
-  if (stored) {
-    const result = validateDataset(stored);
-    if (result.ok) return { dataset: result.dataset, isDemo: false };
-  }
-  return { dataset: createDemoDataset(), isDemo: true };
-}
-
 /** 数据作用域为当前登录账号的工作区；切换账号时由调用方以 key 重新挂载 */
-export function StudentOSProvider({ accountId, children }: { accountId: string; children: ReactNode }) {
-  const keys = useMemo(() => workspaceKeys(accountId), [accountId]);
-  const [{ dataset, isDemo }, setData] = useState(() => loadDataset(keys.dataset));
-  const [studentId, setStudentIdState] = useState<string>(() => readJSON(keys.student, ''));
-  const [todoStore, setTodoStore] = useState<TodoStore>(() => readJSON(keys.todos, { done: {}, custom: {} }));
+export function StudentOSProvider({
+  initial,
+  persistence,
+  children,
+}: {
+  initial: WorkspaceSnapshot;
+  persistence: WorkspacePersistence;
+  children: ReactNode;
+}) {
+  const [{ dataset, isDemo }, setData] = useState(() =>
+    initial.dataset ? { dataset: initial.dataset, isDemo: false } : { dataset: createDemoDataset(), isDemo: true },
+  );
+  const [studentId, setStudentIdState] = useState<string>(initial.studentId);
+  const [todoStore, setTodoStore] = useState<TodoStore>(initial.todos);
+  const syncStatus = useSyncExternalStore(persistence.subscribe, persistence.status);
   const framework = DEFAULT_FRAMEWORK;
 
   const classEval = useMemo(() => evaluateClass(dataset, framework), [dataset, framework]);
   const activeId = dataset.students.some((s) => s.id === studentId) ? studentId : dataset.students[0].id;
 
-  useEffect(() => writeJSON(keys.todos, todoStore), [keys, todoStore]);
+  // 只保存用户的修改，挂载时的初始值无需回写
+  const loaded = useRef(false);
+  useEffect(() => {
+    if (loaded.current) persistence.saveTodos(todoStore);
+    loaded.current = true;
+  }, [persistence, todoStore]);
 
-  const setStudentId = useCallback((id: string) => {
-    setStudentIdState(id);
-    writeJSON(keys.student, id);
-  }, [keys]);
+  const setStudentId = useCallback(
+    (id: string) => {
+      setStudentIdState(id);
+      persistence.saveStudent(id);
+    },
+    [persistence],
+  );
 
-  const importDataset = useCallback((next: Dataset) => {
-    writeJSON(keys.dataset, next);
-    setData({ dataset: next, isDemo: false });
-  }, [keys]);
+  const importDataset = useCallback(
+    (next: Dataset) => {
+      persistence.saveDataset(next);
+      setData({ dataset: next, isDemo: false });
+    },
+    [persistence],
+  );
 
   const resetDemo = useCallback(() => {
-    writeJSON(keys.dataset, undefined);
+    persistence.saveDataset(null);
     setData({ dataset: createDemoDataset(), isDemo: true });
-  }, [keys]);
+  }, [persistence]);
 
   const todos = useMemo<StudentOSValue['todos']>(() => {
     const done = new Set(todoStore.done[activeId] ?? []);
@@ -124,6 +126,7 @@ export function StudentOSProvider({ accountId, children }: { accountId: string; 
     importDataset,
     resetDemo,
     todos,
+    sync: { remote: persistence.remote, status: syncStatus, retry: persistence.retry },
   };
   return <StudentOSContext.Provider value={value}>{children}</StudentOSContext.Provider>;
 }

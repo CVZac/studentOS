@@ -1,0 +1,13 @@
+# 证书由 Caddy 自动向 Let's Encrypt 申请与续期，需要域名已解析到本机且 80/443 端口开放
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:8080
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	log {
+		output stdout
+		format console
+	}
+}

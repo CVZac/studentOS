@@ -47,13 +47,28 @@
 ```bash
 npm ci
 npm run dev       # 本地开发 http://localhost:5173
-npm test          # 单元测试
-npm run build     # 类型检查 + 生产构建，产物在 dist/
+npm test          # 单元测试（前端领域层 + 服务器接口）
 ```
 
-构建产物是纯静态文件（使用 hash 路由与相对路径），可以直接部署到 GitHub Pages、Nginx 或任意静态托管。
+同一份代码有三种构建方式：
 
-`npm run build:artifact` 会生成可发布为 claude.ai Artifact 的单文件页面 `dist-artifact/student-os.html`：React 18.3.1 以 UMD 形式从 cdnjs 加载，应用代码与样式内联；在 Artifact 中导出数据通过 `downloads` 能力完成，查看者确认后保存。
+| 命令 | 产物 | 账号与数据保存在 | 适合 |
+| --- | --- | --- | --- |
+| `npm run build:cloud` | `dist-cloud/`（`server.js` + `public/`），或 `Dockerfile` 镜像 | 云服务器上的 SQLite | 正式使用，可跨设备登录 |
+| `npm run build` | `dist/` 纯静态文件 | 浏览器本机 | GitHub Pages 等静态托管、离线演示 |
+| `npm run build:artifact` | `dist-artifact/student-os.html` 单文件 | 浏览器本机 | 发布为 claude.ai Artifact |
+
+Artifact 版本中 React 18.3.1 以 UMD 形式从 cdnjs 加载，应用代码与样式内联；导出数据通过 `downloads` 能力完成，查看者确认后保存。
+
+## 云端部署
+
+```bash
+cd deploy
+cp .env.example .env     # 填写已解析到服务器的域名
+docker compose up -d --build
+```
+
+Caddy 自动申请 HTTPS 证书并反向代理到应用容器；推送到 main 后，GitHub Actions 会构建镜像推送到 GHCR，配置服务器信息后还会自动部署并核对线上版本。访问、登录与数据、部署、备份四条链路的示意图，首次部署步骤，自动部署配置，运维命令与接口列表见 [docs/deployment.md](docs/deployment.md)。
 
 ## 使用自己的数据
 
@@ -80,17 +95,22 @@ npm run build     # 类型检查 + 生产构建，产物在 dist/
 
 - 指标 id 见 [评价体系文档](docs/evaluation-framework.md) 或 `src/core/framework.ts`；学科成绩与学科均衡由成绩自动计算，无需填写
 - 导入时会校验引用关系与分值范围，并一次列出所有问题
-- 数据与待办完成状态按账号保存在当前浏览器的 localStorage 中，不会上传到任何服务器
+- 云端版本中数据与待办进度保存在服务器，按账号隔离；本地版本中保存在当前浏览器的 localStorage，不会上传
 
 ## 账号与登录
 
-- 用户名 2–20 位（中文、字母、数字或下划线，不区分大小写）；密码 8–64 位，需同时包含字母和数字
-- 密码经 PBKDF2-SHA256（60 万次迭代、16 字节随机盐）派生后保存，不保存明文；连续 5 次密码错误锁定 30 秒
-- 每个账号有独立的工作区：班级数据、当前学生与待办进度互不影响
-- 「保持登录 30 天」关闭时，登录状态只在当前标签页有效
-- 首个注册的账号会继承登录功能上线前保存在本机的数据
+两种模式使用相同的用户名与密码规则：用户名 2–20 位（中文、字母、数字或下划线，不区分大小写），密码 8–64 位且同时包含字母和数字；连续 5 次密码错误锁定 30 秒；每个账号有独立的工作区。
 
-账号保存在当前浏览器中：换设备或清除浏览器数据后需要重新注册，忘记密码也无法找回。它用来区分同一台设备上的不同使用者、隔离各自的数据，不能替代服务端鉴权，不适合保护敏感信息。需要跨设备登录或更强的安全性时，应增加后端服务。
+| | 云端账号（`build:cloud`） | 本地账号（`build` / `build:artifact`） |
+| --- | --- | --- |
+| 保存位置 | 服务器 SQLite | 当前浏览器 localStorage |
+| 密码存储 | scrypt（N=2^15）加盐哈希 | PBKDF2-SHA256（60 万次迭代）加盐哈希 |
+| 登录凭证 | HttpOnly · Secure · SameSite Cookie，令牌在库中只存摘要 | 浏览器本地会话记录 |
+| 跨设备 | 可以 | 不可以，换设备需重新注册 |
+| 改密后 | 其他设备的登录全部失效 | — |
+| 安全性 | 服务端校验与限流，适合正式使用 | 只能区分同一设备上的使用者，不能保护敏感信息 |
+
+「保持登录 30 天」关闭时，登录只在当前浏览器会话内有效。本地模式中，首个注册的账号会继承登录功能上线前保存在本机的数据。
 
 ## 项目结构
 
@@ -107,10 +127,16 @@ src/
 ├── state/                   # 全局状态、派生模型、路由与主题
 ├── components/              # 雷达图、成绩区间图、走势线等图表与基础组件
 └── views/                   # 登录页与六个功能页
+server/                      # 云端服务器：Node.js 内置 http + node:sqlite，无第三方运行时依赖
+├── app.ts                   # 路由、认证、会话、限流、来源校验、工作区接口
+├── db.ts                    # SQLite 表结构迁移与查询
+├── password.ts              # scrypt 密码哈希
+└── __tests__/               # 启动真实 HTTP 服务的接口测试
+deploy/                      # docker compose + Caddy（自动 HTTPS）+ 备份脚本
 ```
 
 调整评价体系只需修改 `src/core/framework.ts`（维度、指标、权重、等级）与 `src/core/recommendations.ts` 中的 `THRESHOLDS`（待办阈值），界面会随之更新。
 
 ## 技术栈
 
-React 19 · TypeScript · Vite · Vitest。图表为手写 SVG / CSS，无第三方图表库；配色使用经过色觉障碍校验的单一强调色（本人）+ 灰色（班级参照），等级与优先级的状态色始终配合文字标签。
+React 19 · TypeScript · Vite · Vitest；服务器为 Node.js 22（内置 `node:http`、`node:sqlite`、`node:crypto`），部署使用 Docker 与 Caddy。图表为手写 SVG / CSS，无第三方图表库；配色使用经过色觉障碍校验的单一强调色（本人）+ 灰色（班级参照），等级与优先级的状态色始终配合文字标签。

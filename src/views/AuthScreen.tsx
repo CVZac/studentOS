@@ -174,6 +174,12 @@ export function AuthScreen() {
             </p>
           </div>
 
+          {auth.notice && !formError && (
+            <div className="notice" style={{ ['--tone' as string]: 'var(--warning)' }} role="status">
+              {auth.notice}
+            </div>
+          )}
+
           {!auth.persistent && (
             <div className="notice" style={{ ['--tone' as string]: 'var(--warning)' }} role="status">
               当前浏览器禁止本地存储，账号只在本次打开期间有效。
@@ -239,7 +245,11 @@ export function AuthScreen() {
 
           <p className="auth-foot">
             <Icon name="lock" size={15} />
-            <span>账号和数据只保存在当前浏览器中，不会上传到服务器。忘记密码无法找回，请妥善保管。</span>
+            <span>
+              {auth.mode === 'server'
+                ? '账号与数据保存在 Student OS 服务器，可在任意设备登录；密码经加盐哈希存储，登录凭证仅通过加密 Cookie 传输。'
+                : '账号和数据只保存在当前浏览器中，不会上传到服务器。忘记密码无法找回，请妥善保管。'}
+            </span>
           </p>
         </div>
       </section>

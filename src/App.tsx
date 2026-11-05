@@ -36,7 +36,7 @@ export function App() {
   const { route, navigate } = useRouter();
   const { theme, toggle } = useTheme();
   const { account, logout } = useAuth();
-  const { dataset, setStudentId, todos: todoState, isDemo } = useStudentOS();
+  const { dataset, setStudentId, todos: todoState, isDemo, sync } = useStudentOS();
   const model = useStudentModel();
   const { student, latestExam, todos } = model;
   const remaining = todos.filter((t) => !todoState.isDone(t.id)).length +
@@ -118,7 +118,17 @@ export function App() {
                   {account.username.slice(0, 1).toUpperCase()}
                 </span>
                 <div className="account-chip-name">
-                  <span className="label">已登录</span>
+                  {!sync.remote ? (
+                    <span className="label">本机账号</span>
+                  ) : sync.status === 'error' ? (
+                    <button type="button" className="sync-state error" onClick={sync.retry}>
+                      保存失败，点此重试
+                    </button>
+                  ) : (
+                    <span className={`sync-state ${sync.status}`} role="status">
+                      {sync.status === 'saving' ? '正在保存…' : '已同步到云端'}
+                    </span>
+                  )}
                   <strong title={account.username}>{account.username}</strong>
                 </div>
                 <button type="button" className="todo-toggle" aria-label="退出登录" title="退出登录" onClick={logout}>
@@ -138,6 +148,20 @@ export function App() {
                 <p className="page-sub">{page.sub}</p>
               </div>
               <div className="topbar-actions">
+                {/* 手机上侧边栏隐藏，在顶栏显示保存中与失败状态 */}
+                {sync.remote && sync.status !== 'saved' && (
+                  <span className="topbar-sync">
+                    {sync.status === 'error' ? (
+                      <button type="button" className="sync-state error" onClick={sync.retry}>
+                        保存失败，重试
+                      </button>
+                    ) : (
+                      <span className="sync-state saving" role="status">
+                        正在保存…
+                      </span>
+                    )}
+                  </span>
+                )}
                 {showSwitcher && (
                   <label className="switcher">
                     <span className="avatar" aria-hidden="true">

@@ -1,0 +1,12 @@
+node_modules
+dist
+dist-cloud
+dist-artifact
+data
+deploy/.env
+deploy/backups
+docs/screenshots
+.git
+.github
+coverage
+*.log

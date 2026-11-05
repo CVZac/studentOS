@@ -1,0 +1,82 @@
+name: Release
+
+# main 分支更新后：构建镜像推送到 GitHub 容器仓库（GHCR），
+# 若配置了服务器信息，再通过 SSH 部署并检查线上健康状态。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "image=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/studentos" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: GIT_SHA=${{ github.sha }}
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+
+  deploy:
+    needs: image
+    # 在仓库 Settings → Secrets and variables → Actions 中配置 DEPLOY_HOST 等变量后才会执行
+    if: ${{ vars.DEPLOY_HOST != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    environment:
+      name: production
+      url: ${{ vars.DEPLOY_URL }}
+    steps:
+      - name: Deploy over SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ vars.DEPLOY_HOST }}
+          USER: ${{ vars.DEPLOY_USER || 'root' }}
+          DIR: ${{ vars.DEPLOY_PATH || '/opt/studentos' }}
+          IMAGE: ${{ needs.image.outputs.image }}:${{ github.sha }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          # 令牌经标准输入传给服务器上的 docker login，不出现在命令行中
+          printf '%s' "$TOKEN" | ssh -i ~/.ssh/id_deploy "$USER@$HOST" "set -e
+            docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+            cd '$DIR'
+            # 服务器上是 git 仓库时同步部署配置（Caddyfile、compose 文件）
+            if [ -d .git ]; then git pull --ff-only; fi
+            cd deploy
+            STUDENTOS_IMAGE='$IMAGE' docker compose pull app
+            STUDENTOS_IMAGE='$IMAGE' docker compose up -d --no-build
+            docker logout ghcr.io"
+      - name: Verify health
+        if: ${{ vars.DEPLOY_URL != '' }}
+        run: |
+          for i in $(seq 1 30); do
+            body=$(curl -fsS "${{ vars.DEPLOY_URL }}/api/health" || true)
+            echo "$body"
+            echo "$body" | grep -q '"commit":"${{ github.sha }}"' && exit 0
+            sleep 5
+          done
+          echo "线上版本未更新到 ${{ github.sha }}" && exit 1

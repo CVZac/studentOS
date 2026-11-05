@@ -4,3 +4,7 @@ dist
 .DS_Store
 coverage
 dist-artifact
+dist-cloud
+data
+deploy/.env
+deploy/backups

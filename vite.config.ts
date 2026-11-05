@@ -5,4 +5,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   base: './',
   plugins: [react()],
+  // npm run dev:cloud 时把 /api 转发到本地运行的 Student OS 服务器
+  server: { proxy: { '/api': 'http://localhost:8080' } },
 });

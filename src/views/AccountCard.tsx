@@ -132,10 +132,18 @@ function DeleteAccount() {
 }
 
 export function AccountCard() {
-  const { account, logout } = useAuth();
+  const { account, logout, mode } = useAuth();
   if (!account) return null;
   return (
-    <Card className="span-12" title="账号" sub="账号保存在当前浏览器中，换设备或清除浏览器数据后需要重新注册">
+    <Card
+      className="span-12"
+      title="账号"
+      sub={
+        mode === 'server'
+          ? '账号与数据保存在云端服务器，可在任意设备登录；修改密码后其他设备需重新登录'
+          : '账号保存在当前浏览器中，换设备或清除浏览器数据后需要重新注册'
+      }
+    >
       <div className="account-grid">
         <div className="account-summary">
           <span className="avatar account-avatar" aria-hidden="true">
